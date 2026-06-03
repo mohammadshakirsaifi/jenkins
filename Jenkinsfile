@@ -3,6 +3,7 @@ pipeline {
 
     environment {
         CI = 'true'
+        npm_config_cache = '/tmp/.npm'
         JEST_JUNIT_OUTPUT_DIR = 'test-results'
         JEST_JUNIT_OUTPUT_NAME = 'junit.xml'
     }
@@ -22,9 +23,14 @@ pipeline {
                     reuseNode true
                 }
             }
+
             steps {
                 sh '''
-                    npm ci
+                    rm -rf node_modules package-lock.json || true
+
+                    mkdir -p /tmp/.npm
+
+                    npm ci --unsafe-perm
                 '''
             }
         }
@@ -41,8 +47,7 @@ pipeline {
                 sh '''
                     mkdir -p test-results
 
-                    CI=true npm test -- \
-                        --testResultsProcessor="jest-junit"
+                    CI=true npm test -- --testResultsProcessor="jest-junit"
                 '''
             }
 
@@ -77,13 +82,13 @@ pipeline {
 
     post {
         always {
-            echo 'CI Pipeline finished'
+            echo 'CI finished'
         }
         success {
-            echo 'Build SUCCESS'
+            echo 'BUILD SUCCESS'
         }
         failure {
-            echo 'Build FAILED'
+            echo 'BUILD FAILED'
         }
     }
 }
