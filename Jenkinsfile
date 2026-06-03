@@ -3,45 +3,17 @@ pipeline {
 
     stages {
 
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
-
-        stage('Clean Workspace') {
-            steps {
-                cleanWs()
-            }
-        }
-
         stage('Install Dependencies') {
             agent {
                 docker {
                     image 'node:18-alpine'
-                    args '-u root'
+                    reuseNode true
                 }
             }
 
             steps {
                 sh '''
-                npm cache clean --force || true
-                npm install
-                '''
-            }
-        }
-
-        stage('Unit Tests') {
-            agent {
-                docker {
-                    image 'node:18-alpine'
-                    args '-u root'
-                }
-            }
-
-            steps {
-                sh '''
-                npm test || true
+                    npm install
                 '''
             }
         }
@@ -50,35 +22,57 @@ pipeline {
             agent {
                 docker {
                     image 'node:18-alpine'
-                    args '-u root'
+                    reuseNode true
                 }
             }
 
             steps {
                 sh '''
-                npm run build || true
+                    npm run build || true
+                    ls -la
                 '''
             }
         }
 
-        stage('Archive') {
+        stage('Test') {
+            agent {
+                docker {
+                    image 'node:18-alpine'
+                    reuseNode true
+                }
+            }
+
             steps {
-                archiveArtifacts artifacts: '**/dist/**', allowEmptyArchive: true
+                sh '''
+                    CI=true npm test || true
+                '''
+            }
+        }
+
+        stage('E2E') {
+            agent {
+                docker {
+                    image 'mcr.microsoft.com/playwright:v1.39.0-jammy'
+                    reuseNode true
+                }
+            }
+
+            steps {
+                sh '''
+                    npm install serve
+
+                    npx serve -s build -l 3000 &
+                    sleep 10
+
+                    npx playwright test
+                '''
             }
         }
     }
 
     post {
         always {
-            echo 'CI finished'
-        }
-
-        success {
-            echo 'BUILD SUCCESS'
-        }
-
-        failure {
-            echo 'BUILD FAILED'
+            junit 'jest-results/junit.xml' || true
         }
     }
 }
