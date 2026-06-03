@@ -6,30 +6,15 @@ pipeline {
         stage('Install Dependencies') {
             agent {
                 docker {
-                    image 'node:18-alpine'
+                    image 'node:18-bullseye'
                     reuseNode true
                 }
             }
 
             steps {
                 sh '''
+                    export NPM_CONFIG_CACHE=/tmp/.npm
                     npm install
-                '''
-            }
-        }
-
-        stage('Build') {
-            agent {
-                docker {
-                    image 'node:18-alpine'
-                    reuseNode true
-                }
-            }
-
-            steps {
-                sh '''
-                    npm run build || true
-                    ls -la
                 '''
             }
         }
@@ -37,14 +22,15 @@ pipeline {
         stage('Test') {
             agent {
                 docker {
-                    image 'node:18-alpine'
+                    image 'node:18-bullseye'
                     reuseNode true
                 }
             }
 
             steps {
                 sh '''
-                    CI=true npm test || true
+                    export NPM_CONFIG_CACHE=/tmp/.npm
+                    CI=true npm test
                 '''
             }
         }
@@ -60,10 +46,8 @@ pipeline {
             steps {
                 sh '''
                     npm install serve
-
-                    npx serve -s build -l 3000 &
+                    npx serve -s build &
                     sleep 10
-
                     npx playwright test
                 '''
             }
@@ -72,7 +56,13 @@ pipeline {
 
     post {
         always {
-            junit 'jest-results/junit.xml' || true
+            script {
+                if (fileExists('jest-results/junit.xml')) {
+                    junit 'jest-results/junit.xml'
+                } else {
+                    echo "JUnit report not found"
+                }
+            }
         }
     }
 }
