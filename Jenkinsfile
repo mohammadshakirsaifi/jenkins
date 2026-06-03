@@ -3,6 +3,7 @@ pipeline {
 
     stages {
         /*
+
         stage('Build') {
             agent {
                 docker {
@@ -10,64 +11,66 @@ pipeline {
                     reuseNode true
                 }
             }
-
             steps {
                 sh '''
-                    export HOME=$WORKSPACE
-                    export NPM_CONFIG_CACHE=$WORKSPACE/.npm
-
+                    ls -la
+                    node --version
+                    npm --version
                     npm ci
                     npm run build
+                    ls -la
                 '''
             }
         }
         */
-        stage('Test') {
-            agent {
-                docker {
-                    image 'node:18-alpine'
-                    reuseNode true
+
+        stage('Tests') {
+            parallel {
+                stage('Unit tests') {
+                    agent {
+                        docker {
+                            image 'node:18-alpine'
+                            reuseNode true
+                        }
+                    }
+
+                    steps {
+                        sh '''
+                            #test -f build/index.html
+							CI=true npm test
+                        '''
+                    }
+                    post {
+                        always {
+                            junit 'jest-results/junit.xml'
+                        }
+                    }
+                }
+
+                stage('E2E') {
+                    agent {
+                        docker {
+                            image 'mcr.microsoft.com/playwright:v1.39.0-jammy'
+                            reuseNode true
+                        }
+                    }
+
+                    steps {
+                        sh '''
+                            npm install serve
+                            node_modules/.bin/serve -s build &
+                            sleep 10
+                            npx playwright test  --reporter=html
+                        '''
+                    }
+
+                    post {
+                        always {
+                            publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'playwright-report', reportFiles: 'index.html', reportName: 'Playwright HTML Report', reportTitles: '', useWrapperFileDirectly: true])
+                        }
+                    }
                 }
             }
-
-            steps {
-                sh '''
-                    export HOME=$WORKSPACE
-                    export NPM_CONFIG_CACHE=$WORKSPACE/.npm
-
-                    npm ci
-                    npm test -- --watchAll=false
-                '''
-            }
-        }
-
-        stage('E2E') {
-            agent {
-                docker {
-                    image 'mcr.microsoft.com/playwright:v1.39.0-jammy'
-                    reuseNode true
-                }
-            }
-
-            steps {
-                sh '''
-                    export HOME=$WORKSPACE
-                    export NPM_CONFIG_CACHE=$WORKSPACE/.npm
-
-                    npm ci
-
-                    npx serve -s build -l 3000 &
-                    npx wait-on http://localhost:3000
-
-                    npx playwright test
-                '''
-            }
-        }
-    }
-
-    post {
-        always {
-            junit 'jest-results/junit.xml'
         }
     }
 }
