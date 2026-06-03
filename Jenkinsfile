@@ -2,6 +2,7 @@ pipeline {
     agent any
 
     environment {
+        CI = 'true'
         JEST_JUNIT_OUTPUT_DIR = 'test-results'
         JEST_JUNIT_OUTPUT_NAME = 'junit.xml'
     }
@@ -14,14 +15,13 @@ pipeline {
             }
         }
 
-        stage('Install') {
+        stage('Install Dependencies') {
             agent {
                 docker {
                     image 'node:18-alpine'
                     reuseNode true
                 }
             }
-
             steps {
                 sh '''
                     npm ci
@@ -40,9 +40,9 @@ pipeline {
             steps {
                 sh '''
                     mkdir -p test-results
-                    chmod -R 777 test-results
 
-                    CI=true npm test -- --testResultsProcessor="jest-junit"
+                    CI=true npm test -- \
+                        --testResultsProcessor="jest-junit"
                 '''
             }
 
@@ -68,34 +68,22 @@ pipeline {
             }
         }
 
-        stage('E2E') {
-            agent {
-                docker {
-                    image 'mcr.microsoft.com/playwright:v1.60.0-jammy'
-                    reuseNode true
-                }
-            }
-
+        stage('Archive Build') {
             steps {
-                sh '''
-                    npm ci
-
-                    npx serve -s build -l 3000 &
-                    npx wait-on http://localhost:3000
-
-                    npx playwright test --reporter=html
-                '''
+                archiveArtifacts artifacts: 'build/**', fingerprint: true
             }
+        }
+    }
 
-            post {
-                always {
-                    publishHTML([
-                        reportDir: 'playwright-report',
-                        reportFiles: 'index.html',
-                        reportName: 'Playwright Report'
-                    ])
-                }
-            }
+    post {
+        always {
+            echo 'CI Pipeline finished'
+        }
+        success {
+            echo 'Build SUCCESS'
+        }
+        failure {
+            echo 'Build FAILED'
         }
     }
 }
