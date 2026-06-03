@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     stages {
-        /*
+/*
         stage('Build') {
             agent {
                 docker {
@@ -10,18 +10,14 @@ pipeline {
                     reuseNode true
                 }
             }
-
             steps {
                 sh '''
-                    export HOME=$WORKSPACE
-                    export NPM_CONFIG_CACHE=$WORKSPACE/.npm
-
                     npm ci
                     npm run build
                 '''
             }
         }
-        */
+*/
         stage('Test') {
             agent {
                 docker {
@@ -29,12 +25,8 @@ pipeline {
                     reuseNode true
                 }
             }
-
             steps {
                 sh '''
-                    export HOME=$WORKSPACE
-                    export NPM_CONFIG_CACHE=$WORKSPACE/.npm
-
                     npm ci
                     npm test -- --watchAll=false
                 '''
@@ -44,21 +36,16 @@ pipeline {
         stage('E2E') {
             agent {
                 docker {
-                    image 'mcr.microsoft.com/playwright:v1.39.0-noble'
+                    image 'mcr.microsoft.com/playwright:v1.60.0-jammy'
                     reuseNode true
                 }
             }
 
             steps {
                 sh '''
-                    export HOME=$WORKSPACE
-                    export NPM_CONFIG_CACHE=$WORKSPACE/.npm
-
                     npm ci
-
                     npx serve -s build -l 3000 &
                     npx wait-on http://localhost:3000
-
                     npx playwright test
                 '''
             }
@@ -67,7 +54,7 @@ pipeline {
 
     post {
         always {
-            junit 'jest-results/junit.xml'
+            junit 'jest-results/**/*.xml'
         }
     }
 }
