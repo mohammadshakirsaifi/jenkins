@@ -1,5 +1,6 @@
 pipeline {
     agent any
+
     stages {
         stage('Build') {
             agent {
@@ -13,14 +14,13 @@ pipeline {
                     ls -la
                     node --version
                     npm --version
-                    export HOME=$WORKSPACE
-                    export NPM_CONFIG_CACHE=$WORKSPACE/.npm
                     npm ci
                     npm run build
                     ls -la
                 '''
             }
         }
+
         stage('Test') {
             agent {
                 docker {
@@ -28,15 +28,19 @@ pipeline {
                     reuseNode true
                 }
             }
+
             steps {
                 sh '''
-                    export HOME=$WORKSPACE
-                    export NPM_CONFIG_CACHE=$WORKSPACE/.npm
-                    npm ci
                     test -f build/index.html
-					CI=true npm test
+                    npm test
                 '''
             }
+        }
+    }
+
+    post {
+        always {
+            junit 'test-results/junit.xml'
         }
     }
 }
