@@ -1,10 +1,6 @@
 pipeline {
     agent any
 
-    environment {
-        NPM_CONFIG_CACHE = "/tmp/.npm"
-    }
-
     stages {
 
         stage('Install Dependencies') {
@@ -17,7 +13,7 @@ pipeline {
 
             steps {
                 sh '''
-                    npm config set cache /tmp/.npm --global
+                    export NPM_CONFIG_CACHE=/tmp/.npm
                     npm install
                 '''
             }
@@ -33,7 +29,7 @@ pipeline {
 
             steps {
                 sh '''
-                    npm config set cache /tmp/.npm --global
+                    export NPM_CONFIG_CACHE=/tmp/.npm
                     CI=true npm test
                 '''
             }
@@ -49,13 +45,9 @@ pipeline {
 
             steps {
                 sh '''
-                    npm config set cache /tmp/.npm --global
-
-                    # start app (make sure build exists)
+                    npm install serve
                     npx serve -s build &
                     sleep 10
-
-                    # run playwright tests
                     npx playwright test
                 '''
             }
