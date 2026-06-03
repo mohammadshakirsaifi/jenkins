@@ -52,6 +52,8 @@ pipeline {
 
             steps {
                 sh '''
+					export HOME=$WORKSPACE
+                    export NPM_CONFIG_CACHE=$WORKSPACE/.npm
 					npm ci
                     npx serve -s build -l 3000 &
                     npx wait-on http://localhost:3000
