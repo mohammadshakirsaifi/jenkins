@@ -3,7 +3,6 @@ pipeline {
 
     stages {
         /*
-
         stage('Build') {
             agent {
                 docker {
@@ -11,19 +10,18 @@ pipeline {
                     reuseNode true
                 }
             }
+
             steps {
                 sh '''
-                    ls -la
-                    node --version
-                    npm --version
+                    export HOME=$WORKSPACE
+                    export NPM_CONFIG_CACHE=$WORKSPACE/.npm
+
                     npm ci
                     npm run build
-                    ls -la
                 '''
             }
         }
         */
-
         stage('Test') {
             agent {
                 docker {
@@ -34,8 +32,11 @@ pipeline {
 
             steps {
                 sh '''
-                    #test -f build/index.html
-                    npm test
+                    export HOME=$WORKSPACE
+                    export NPM_CONFIG_CACHE=$WORKSPACE/.npm
+
+                    npm ci
+                    npm test -- --watchAll=false
                 '''
             }
         }
@@ -50,9 +51,14 @@ pipeline {
 
             steps {
                 sh '''
-                    npm install serve
-                    node_modules/.bin/serve -s build &
-                    sleep 10
+                    export HOME=$WORKSPACE
+                    export NPM_CONFIG_CACHE=$WORKSPACE/.npm
+
+                    npm ci
+
+                    npx serve -s build -l 3000 &
+                    npx wait-on http://localhost:3000
+
                     npx playwright test
                 '''
             }
