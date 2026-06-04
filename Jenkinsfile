@@ -10,14 +10,17 @@ pipeline {
                     reuseNode true
                 }
             }
+
+            environment {
+                NPM_CONFIG_CACHE = "${WORKSPACE}/.npm"
+            }
+
             steps {
                 sh '''
-                    ls -la
-                    node --version
-                    npm --version
-                    npm ci
+                    mkdir -p $NPM_CONFIG_CACHE
+
+                    npm ci --cache $NPM_CONFIG_CACHE --prefer-offline --no-audit --no-fund
                     npm run build
-                    ls -la
                 '''
             }
         }
@@ -31,6 +34,8 @@ pipeline {
                             node {
                                 docker.image('node:18-alpine').inside {
                                     sh '''
+                                        mkdir -p .npm
+                                        npm ci --cache .npm --prefer-offline --no-audit --no-fund
                                         npm test
                                     '''
                                 }
@@ -41,10 +46,11 @@ pipeline {
                             node {
                                 docker.image('mcr.microsoft.com/playwright:v1.39.0-jammy').inside {
                                     sh '''
-                                        npm ci
+                                        mkdir -p .npm
+                                        npm ci --cache .npm --prefer-offline --no-audit --no-fund
                                         npm install serve
 
-                                        serve -s build &
+                                        npx serve -s build &
                                         sleep 10
 
                                         npx playwright test --reporter=html
@@ -59,7 +65,8 @@ pipeline {
 
             post {
                 always {
-                    junit allowEmptyResults: true, testResults: 'jest-results/junit.xml'
+                    junit allowEmptyResults: true,
+                          testResults: 'jest-results/junit.xml'
 
                     publishHTML([
                         allowMissing: false,
