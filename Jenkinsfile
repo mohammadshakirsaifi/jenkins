@@ -10,7 +10,7 @@ pipeline {
         CI = 'true'
         HOME = "${env.WORKSPACE}"
         NPM_CONFIG_CACHE = "${env.WORKSPACE}/.npm"
-        SKIP_E2E = "true"  // Add this to skip E2E tests (use // for comments, not #)
+        SKIP_E2E = "true"  // Skip E2E tests for now
     }
 
     stages {
@@ -24,7 +24,7 @@ pipeline {
         stage('Clean Workspace') {
             steps {
                 sh '''
-                    rm -rf node_modules package-lock.json build .npm
+                    rm -rf node_modules package-lock.json build .npm test-results playwright-report
                     mkdir -p .npm
                 '''
             }
@@ -33,10 +33,10 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 sh '''
-                    if [ ! -f package-lock.json ]; then
-                        npm install --package-lock-only
-                    fi
-                    npm ci --cache .npm --prefer-offline --no-audit --no-fund || npm install
+                    # Fix package-lock.json sync issue
+                    rm -f package-lock.json
+                    npm install --package-lock-only
+                    npm install --no-audit --no-fund
                 '''
             }
         }
@@ -49,7 +49,9 @@ pipeline {
 
         stage('Unit Tests') {
             steps {
-                sh 'npm test -- --watchAll=false --ci --coverage || true'
+                sh '''
+                    npm test -- --watchAll=false --ci --coverage --testResultsProcessor="jest-junit" || true
+                '''
             }
         }
 
@@ -59,19 +61,18 @@ pipeline {
             }
             steps {
                 sh '''
-                    lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+                    # Kill any process using port 3000
+                    kill $(lsof -t -i:3000) 2>/dev/null || true
+                    
+                    # Install serve globally
                     npm install -g serve
+                    
+                    # Start the app in background
                     serve -s build -l 3000 > serve.log 2>&1 &
                     echo $! > serve.pid
                     
-                    // Wait for app with timeout
-                    for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
-                        if curl -s http://localhost:3000 > /dev/null; then
-                            echo "App is ready"
-                            break
-                        fi
-                        sleep 2
-                    done
+                    # Wait for app to be ready
+                    sleep 5
                 '''
             }
         }
@@ -92,22 +93,51 @@ pipeline {
     post {
         always {
             script {
+                // Clean up background processes - with error handling
                 sh '''
-                    pkill -f "serve -s build" 2>/dev/null || true
-                    lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+                    if [ -f serve.pid ]; then
+                        kill -9 $(cat serve.pid) 2>/dev/null || true
+                        rm -f serve.pid
+                    fi
+                    # Kill any remaining serve processes
+                    pkill -f "serve" 2>/dev/null || true
+                    # Kill processes on port 3000
+                    kill -9 $(lsof -t -i:3000) 2>/dev/null || true
                 '''
                 
+                // Publish test results
                 junit allowEmptyResults: true,
                       testResults: '**/junit.xml, test-results/**/*.xml'
                 
-                publishHTML([
-                    allowMissing: true,
-                    alwaysLinkToLastBuild: true,
-                    keepAll: true,
-                    reportDir: 'playwright-report',
-                    reportFiles: 'index.html',
-                    reportName: 'Playwright HTML Report'
-                ])
+                // Publish HTML report if it exists
+                script {
+                    if (fileExists('playwright-report/index.html')) {
+                        publishHTML([
+                            allowMissing: true,
+                            alwaysLinkToLastBuild: true,
+                            keepAll: true,
+                            reportDir: 'playwright-report',
+                            reportFiles: 'index.html',
+                            reportName: 'Playwright HTML Report'
+                        ])
+                    }
+                }
+                
+                // Archive artifacts
+                archiveArtifacts artifacts: 'playwright-report/**/*, test-results/**/*, serve.log, build/**/*, coverage/**/*', 
+                              allowEmptyArchive: true
+            }
+        }
+        
+        failure {
+            script {
+                echo 'Pipeline failed! Check logs for details.'
+                sh '''
+                    if [ -f serve.log ]; then
+                        echo "=== Serve Log Output ==="
+                        cat serve.log
+                    fi
+                '''
             }
         }
     }
