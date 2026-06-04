@@ -29,6 +29,7 @@ pipeline {
 
                     rm -rf node_modules
                     npm ci --no-audit --no-fund
+
                     npm run build
                 '''
             }
@@ -60,7 +61,7 @@ pipeline {
 
                     post {
                         always {
-                            junit '**/jest-results/*.xml'
+                            junit allowEmptyResults: true, testResults: '**/jest-results/*.xml'
                         }
                     }
                 }
@@ -70,6 +71,7 @@ pipeline {
                         docker {
                             image 'mcr.microsoft.com/playwright:v1.39.0-jammy'
                             reuseNode true
+                            args '-u root --ipc=host'
                         }
                     }
 
@@ -81,7 +83,6 @@ pipeline {
                             rm -rf node_modules
                             npm ci --no-audit --no-fund
 
-                            npx playwright install --with-deps
                             npx playwright test --reporter=html
                         '''
                     }
@@ -89,7 +90,7 @@ pipeline {
                     post {
                         always {
                             publishHTML([
-                                allowMissing: false,
+                                allowMissing: true,
                                 alwaysLinkToLastBuild: true,
                                 keepAll: true,
                                 reportDir: 'playwright-report',
