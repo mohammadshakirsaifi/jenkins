@@ -1,87 +1,76 @@
 pipeline {
     agent any
 
-    environment {
-        NPM_CONFIG_CACHE = "/tmp/.npm"
-    }
-
     stages {
+        /*
 
-        stage('Install & Build') {
+        stage('Build') {
             agent {
                 docker {
                     image 'node:18-alpine'
                     reuseNode true
                 }
             }
-
             steps {
                 sh '''
-                    mkdir -p /tmp/.npm
-
+                    ls -la
                     node --version
                     npm --version
-
-                    # clean install (more stable than npm ci in CI flaky workspaces)
-                    rm -rf node_modules package-lock.json
-                    npm install
-
+                    npm ci
                     npm run build
+                    ls -la
                 '''
             }
         }
+        */
 
-        stage('Test') {
-            agent {
-                docker {
-                    image 'node:18-alpine'
-                    reuseNode true
+        stage('Tests') {
+            parallel {
+                stage('Unit tests') {
+                    agent {
+                        docker {
+                            image 'node:18-alpine'
+                            reuseNode true
+                        }
+                    }
+
+                    steps {
+                        sh '''
+                            #test -f build/index.html
+                            npm test
+                        '''
+                    }
+                    post {
+                        always {
+                            junit 'jest-results/junit.xml'
+                        }
+                    }
+                }
+
+                stage('E2E') {
+                    agent {
+                        docker {
+                            image 'mcr.microsoft.com/playwright:v1.39.0-jammy'
+                            reuseNode true
+                        }
+                    }
+
+                    steps {
+                        sh '''
+                            npm install serve
+                            node_modules/.bin/serve -s build &
+                            sleep 10
+                            npx playwright test  --reporter=html
+                        '''
+                    }
+
+                    post {
+                        always {
+                            publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'playwright-report', reportFiles: 'index.html', reportName: 'Playwright HTML Report', reportTitles: '', useWrapperFileDirectly: true])
+                        }
+                    }
                 }
             }
-
-            steps {
-                sh '''
-                    npm test
-                '''
-            }
-        }
-
-        stage('E2E') {
-            agent {
-                docker {
-                    image 'mcr.microsoft.com/playwright:v1.39.0-jammy'
-                    reuseNode true
-                }
-            }
-
-            steps {
-                sh '''
-                    export NPM_CONFIG_CACHE=/tmp/.npm
-                    mkdir -p /tmp/.npm
-
-                    npm install -g serve
-
-                    serve -s build -l 3000 &
-                    sleep 10
-
-                    npx playwright test --reporter=html
-                '''
-            }
-        }
-    }
-
-    post {
-        always {
-            junit allowEmptyResults: true, testResults: 'jest-results/junit.xml'
-
-            publishHTML([
-                allowMissing: true,
-                alwaysLinkToLastBuild: true,
-                keepAll: true,
-                reportDir: 'playwright-report',
-                reportFiles: 'index.html',
-                reportName: 'Playwright HTML Report'
-            ])
         }
     }
 }
