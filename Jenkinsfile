@@ -24,9 +24,11 @@ pipeline {
 
             steps {
                 sh '''
-                    npm config set cache .npm-cache --global
+                    export HOME=$WORKSPACE
+                    npm config set cache $WORKSPACE/.npm-cache
+
                     rm -rf node_modules
-                    npm ci --prefer-offline --no-audit --no-fund
+                    npm ci --no-audit --no-fund
                     npm run build
                 '''
             }
@@ -48,16 +50,17 @@ pipeline {
                         sh '''
                             export HOME=$WORKSPACE
                             npm config set cache $WORKSPACE/.npm-cache
-                            rm -rf node_modules
 
+                            rm -rf node_modules
                             npm ci --no-audit --no-fund
+
                             npm test -- --watchAll=false
                         '''
                     }
 
                     post {
                         always {
-                            junit 'jest-results/**/*.xml'
+                            junit '**/jest-results/*.xml'
                         }
                     }
                 }
@@ -74,8 +77,8 @@ pipeline {
                         sh '''
                             export HOME=$WORKSPACE
                             npm config set cache $WORKSPACE/.npm-cache
-                            rm -rf node_modules
 
+                            rm -rf node_modules
                             npm ci --no-audit --no-fund
 
                             npx playwright install --with-deps
@@ -86,6 +89,9 @@ pipeline {
                     post {
                         always {
                             publishHTML([
+                                allowMissing: false,
+                                alwaysLinkToLastBuild: true,
+                                keepAll: true,
                                 reportDir: 'playwright-report',
                                 reportFiles: 'index.html',
                                 reportName: 'Playwright HTML Report'
