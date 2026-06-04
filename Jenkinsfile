@@ -1,49 +1,66 @@
-stage('Tests') {
-    parallel {
+pipeline {
+    agent any
 
-        stage('Unit tests') {
+    stages {
+
+        stage('Build') {
             agent {
                 docker {
                     image 'node:18-alpine'
                     reuseNode true
                 }
             }
-
             steps {
                 sh '''
-                    npm test
+                    ls -la
+                    node --version
+                    npm --version
+                    npm ci
+                    npm run build
+                    ls -la
                 '''
-            }
-
-            post {
-                always {
-                    junit 'jest-results/junit.xml'
-                }
             }
         }
 
-        stage('E2E') {
-            agent {
-                docker {
-                    image 'mcr.microsoft.com/playwright:v1.39.0-jammy'
-                    reuseNode true
-                }
-            }
-
+        stage('Tests') {
             steps {
-                sh '''
-                    npm ci
-                    npm install -g serve
+                script {
+                    parallel(
 
-                    serve -s build &
-                    sleep 10
+                        "Unit Tests": {
+                            node {
+                                docker.image('node:18-alpine').inside {
+                                    sh '''
+                                        npm test
+                                    '''
+                                }
+                            }
+                        },
 
-                    npx playwright test --reporter=html
-                '''
+                        "E2E Tests": {
+                            node {
+                                docker.image('mcr.microsoft.com/playwright:v1.39.0-jammy').inside {
+                                    sh '''
+                                        npm ci
+                                        npm install serve
+
+                                        serve -s build &
+                                        sleep 10
+
+                                        npx playwright test --reporter=html
+                                    '''
+                                }
+                            }
+                        }
+
+                    )
+                }
             }
 
             post {
                 always {
+                    junit allowEmptyResults: true, testResults: 'jest-results/junit.xml'
+
                     publishHTML([
                         allowMissing: false,
                         alwaysLinkToLastBuild: false,
