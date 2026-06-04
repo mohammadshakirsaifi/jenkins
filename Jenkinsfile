@@ -10,7 +10,7 @@ pipeline {
         CI = 'true'
         HOME = "${env.WORKSPACE}"
         NPM_CONFIG_CACHE = "${env.WORKSPACE}/.npm"
-        SKIP_E2E = "true"  # Add this to skip E2E tests
+        SKIP_E2E = "true"  // Add this to skip E2E tests (use // for comments, not #)
     }
 
     stages {
@@ -64,8 +64,8 @@ pipeline {
                     serve -s build -l 3000 > serve.log 2>&1 &
                     echo $! > serve.pid
                     
-                    # Wait for app with timeout
-                    for i in {1..15}; do
+                    // Wait for app with timeout
+                    for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
                         if curl -s http://localhost:3000 > /dev/null; then
                             echo "App is ready"
                             break
